@@ -1,10 +1,10 @@
 "use client"
 import React from 'react'
-import { useState } from 'react'
 import { motion } from "framer-motion";
 import { Icon } from '@iconify/react';
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import Link from 'next/link';
 
 const Hero = () => {
   return (
@@ -37,14 +37,18 @@ const Hero = () => {
                         secure transactions.
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-4">
-                        <Button size="lg"className="h-14 px-10 bg-gradient-to-br from-primary to-primary/90 shadow-lg shadow-primary/20">
+                        <Link href="/create-campaign">
+                        <Button size="lg"className="h-14 px-10 bg-gradient-to-br from-primary to-primary/90 shadow-lg shadow-primary/20 cursor-pointer">
                             <Icon icon='solar:rocket-bold' className='size-6 mr-2'/>
                                 Start a Campaign
                         </Button>
-                        <Button size="lg"className="h-14 px-10 bg-gradient-to-br from-primary to-primary/90 shadow-lg shadow-primary/20">
+                        </Link>
+                        <Link href="/campaigns">
+                        <Button size="lg"className="h-14 px-10 bg-gradient-to-br from-primary to-primary/90 shadow-lg shadow-primary/20 cursor-pointer">
                             <Icon icon='solar:compass-bold' className='size-6 mr-2'/>
                                 Explore Projects
                         </Button>
+                        </Link>
                     </div>
                 </motion.div>
 

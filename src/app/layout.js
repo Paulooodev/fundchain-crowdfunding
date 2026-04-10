@@ -1,10 +1,6 @@
+import Header from "./components/Layouts/Header";
+import Footer from "./components/Layouts/Footer";
 import { Montserrat, Inter, Playfair_Display, JetBrains_Mono} from "next/font/google";
-import  Header  from "./components/Layouts/Header";
-import Hero from "./components/home/Hero";
-import Platforms from "./components/home/Platforms";
-import Campaigns from "./components/home/Campaigns";
-import OurProtocol from "./components/home/OurProtocol";
-import  Footer  from "./components/Layouts/Footer"
 import { CrowdFundingProvider } from "../../Context/crowdfunding";
 
 import "./globals.css";
@@ -44,12 +40,8 @@ export default function RootLayout({ children }) {
       >
         <CrowdFundingProvider>
           <Header/>
-          <Hero />
-          <Platforms />
-          <Campaigns />
-          <OurProtocol />
           {children}
-          <Footer />
+          <Footer/>
         </CrowdFundingProvider>
       </body>
     </html>
