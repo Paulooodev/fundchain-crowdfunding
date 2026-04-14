@@ -1,5 +1,6 @@
 import Header from "./components/Layouts/Header";
 import Footer from "./components/Layouts/Footer";
+import { Toaster } from "@/components/ui/sonner";
 import { Montserrat, Inter, Playfair_Display, JetBrains_Mono} from "next/font/google";
 import { CrowdFundingProvider } from "../../Context/crowdfunding";
 
@@ -42,6 +43,7 @@ export default function RootLayout({ children }) {
           <Header/>
           {children}
           <Footer/>
+          <Toaster position="bottom-right" richColors />
         </CrowdFundingProvider>
       </body>
     </html>

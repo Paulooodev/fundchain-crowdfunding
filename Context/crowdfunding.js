@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
 // Internal Import
 import { CrowdFundingABI, CrowdFundingAddress } from './constant';
+// Toaster Import 
+import { toast } from 'sonner';
 
 // --- Fetch smart contract ---
 // Need to ask why there's no Curly braces
@@ -46,20 +48,30 @@ export const CrowdFundingProvider = ({ children }) => {
 
     const connectWallet = async () => {
         try {
-            if(!window.ethereum)
-                return console.log("Please install metamask or Rabby");
+            if(!window.ethereum) {
+                toast.error("MetaMask/Rabby not found", {
+                    description: "Please install MetaMask/Rabby or any other wallet provider to continue."
+                });
+                return;
+            }
 
             const accounts = await window.ethereum.request({
                 method:"eth_requestAccounts"
             });
             setCurrentAccount(accounts[0]);
+            toast.success("Wallet connected", {
+                description: `${accounts[0].slice(0,6)}...${accounts[0].slice(-4)}`
+            })
         } catch (err) {
-            console.log("Error connecting wallet:", err)
+            toast.error("Connection rejected", {
+                description: "You cancelled the wallet connection."
+            })
         }
     };
 
     const disconnectWallet = () => {
         setCurrentAccount("");
+        toast.success("Wallet disconnected");
     };
 
      useEffect(() => {
@@ -69,7 +81,13 @@ export const CrowdFundingProvider = ({ children }) => {
             window.ethereum.on("accountsChanged", (accounts) => {
                 if(accounts.length){
                 setCurrentAccount(accounts[0]);
-            } else setCurrentAccount("");
+                toast.success("Account switched", {
+                        description: `${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`
+                    });
+            } else {
+                setCurrentAccount("");
+                toast.success("Wallet disconnected");
+            } 
             })
         }
     }, []);
@@ -97,7 +115,9 @@ export const CrowdFundingProvider = ({ children }) => {
         const { title, description, target, deadline, milestoneDescriptions, milestoneAmounts } = campaign;
         try {
           const contract = await getSignerContract();
-          
+          const toastId = toast.loading("Creating Campaign...", {
+            description: "Please confirm the transaction in MetaMask."
+          })
           const transaction = await contract.createCampaign(
             currentAccount, // owner
             title,
@@ -110,14 +130,27 @@ export const CrowdFundingProvider = ({ children }) => {
             )
           );
           await transaction.wait();
+          toast.success("Campaign created!", {
+            id: toastId,
+            description: `${title} is now live, view transaction ${transaction.hash} on the explorer`
+          })
           console.log("Campaign created successfully:", transaction.hash);
         } catch(err) {
-            console.log("Error creating campaign:", err);
+            if(err.code === "ACTION_REJECTED") {
+                toast.error("Transaction rejected", {
+                    description: "Transaction was cancelled."
+                })
+            } else {
+                toast.error("Campaign creation failed", {
+                    description: err.reason || err.message
+                });
+                throw err;
+            } 
         }
     }; 
     // This fetches all the campaigns created
     // Allows easy fetching of campaigns to display on the Next.JS frontend
-    const getCampaigns = async (id) => {
+    const getCampaigns = async () => {
         try {  
           const contract = getReadContract();
 
@@ -153,10 +186,10 @@ export const CrowdFundingProvider = ({ children }) => {
                 owner: c.owner,
                 title: c.title,
                 description: c.description,
-                target: ethers.formatEther(c.target.toString()),
+                target: ethers.utils.formatEther(c.target.toString()),
                 deadline: new Date(Number(c.deadline) * 1000).toLocaleDateString(),
                 deadlineRaw: Number(c.deadline),
-                amountCollected: ethers.formatEther(c.amountCollected.toString()),
+                amountCollected: ethers.utils.formatEther(c.amountCollected.toString()),
                 status: Number(c.status),
                 nextMilestoneToPay: Number(c.nextMilestoneToPay),
             };
@@ -169,27 +202,57 @@ export const CrowdFundingProvider = ({ children }) => {
     const donateToCampaign = async (id, amount) => {
         try {  
           const contract = await getSignerContract();
-
+          const toastId = toast.loading("Processing donation...", {
+            description: "Please confirm the transaction in MetaMask."
+            });
           const transaction = await contract.donateToCampaign(id, {
             value: ethers.utils.parseEther(amount.toString()),
           });
 
           await transaction.wait();
+          toast.success("Donation successful!", {
+                id: toastId,
+                description: `${amount} ETH has been added to the campaign escrow. View transaction ${transaction.hash}`
+            });
           console.log("Donation successful", transaction.hash);
           return transaction;
         } catch(err) {
-            console.log("Error donating:", err)
+            if(err.code === "ACTION_REJECTED"){
+                toast.error("Transaction Rejected", {
+                    description: "Donation was cancelled."
+                })
+            } else {
+                toast.error("Donation failed", {
+                    description: err.reason || err.message
+                });
+            }
+            throw err;
         }
     }; 
 
     const finalizeCampaign = async (id) => {
         try {  
           const contract = await getSignerContract();
+          const toastId = toast.loading("Finalizing campaign...", {
+                description: "Please confirm the transaction in MetaMask/Rabby."
+            });
           const transaction = await contract.finalizeCampaign(id);
           await transaction.wait();
+          toast.success("Campaign finalized!", {
+                id: toastId,
+                description: "The campaign outcome has been recorded on-chain."
+            });
           console.log("Campaign finalized");
         } catch(err) {
-            console.log("Error finalizing campaign:", err);
+            if(err.code === "ACTION_REJECTED"){
+                toast.error("Transaction Rejected", {
+                    description: "Donation was cancelled."
+                })
+            } else {
+                toast.error("Donation failed", {
+                    description: err.reason || err.message
+                });
+            }
             throw err;
         }
     }; 
@@ -197,11 +260,26 @@ export const CrowdFundingProvider = ({ children }) => {
     const cancelCampaign = async (id) => {
         try {  
           const contract = await getSignerContract();
+          const toastId = toast.loading("Cancelling campaign...", {
+                description: "Please confirm the transaction in MetaMask."
+            });
           const transaction = await contract.cancelCampaign(id);
           await transaction.wait();
+          toast.success("Campaign cancelled", {
+                id: toastId,
+                description: "The campaign has been cancelled successfully."
+            });
           console.log("Campaign cancelled");
         } catch(err) {
-            console.log("Error cancelling campaign:", err);
+            if(err.code === "ACTION_REJECTED"){
+                toast.error("Transaction Rejected", {
+                    description: "Donation was cancelled."
+                })
+            } else {
+                toast.error("Campaign cancellation failed", {
+                    description: err.reason || err.message
+                });
+            }
             throw err;
         }
     }; 
@@ -213,77 +291,138 @@ export const CrowdFundingProvider = ({ children }) => {
             const m = await contract.getMilestone(campaignId, milestoneId);
             return {
                 description: m[0],
-                amount: ethers.formatEther(m[1].toString()),
+                amount: ethers.utils.formatEther(m[1].toString()),
                 proofHash: m[2],
                 proofSubmitted: m[3],
                 approved: m[4],
                 paid: m[5],
-                votesFor: ethers.formatEther(m[6].toString()),
-                votesAgainst: ethers.formatEther(m[7].toString()),
+                votesFor: ethers.utils.formatEther(m[6].toString()),
+                votesAgainst: ethers.utils.formatEther(m[7].toString()),
                 votingDeadline: Number(m[8]),
             };
         } catch (error) {
-            console.log("getMilestoneDetails error:", error);
+            if (error.code === "CALL_EXCEPTION" || error.message.includes("Panic")) {
+            console.log(`Milestone ${milestoneId} does not exist yet.`);
+            return null;
+        }
+        console.error(`getMilestoneDetails error:`, error);
+        return null;
         }
     };
 
     const submitMilestoneProof = async (campaignId, milestoneId, ipfsHash) => {
         try {
             const contract = await getSignerContract();
+            const toastId = toast.loading("Submitting proof...", {
+                description: "Please confirm the transaction in MetaMask/Rabby."
+            });
             const transaction = await contract.submitMilestoneProof(
                 campaignId,
                 milestoneId,
                 ipfsHash
             );
             await transaction.wait();
-            console.log("Proof submitted successfully");
+            toast.success("Proof submitted!", {
+                id: toastId,
+                description: "A 7-day voting window is now open for donors."
+            });
+            return transaction
         } catch(err) {
-            console.log("Error submitting proof:", err);
+            if(err.code === "ACTION_REJECTED"){
+                toast.error("Transaction Rejected", {
+                    description: "Donation was cancelled."
+                })
+            } else {
+                toast.error("Proof submission failed", {
+                    description: err.reason || err.message
+                });
+            }
             throw err;
-    }
+        }
 
     }; 
     
     const voteOnMilestone = async (campaignId, milestoneId, support) => {
         try {
             const contract = await getSignerContract();
+            const toastId = toast.loading(
+                support ? "Casting approval vote..." : "Casting rejection vote...",
+                { description: "Please confirm the transaction in MetaMask." }
+            );
             const transaction = await contract.voteOnMilestone(
                 campaignId,
                 milestoneId,
                 support
             );
             await transaction.wait();
+            toast.success(support ? "Vote cast — Approved!" : "Vote cast — Rejected", {
+                id: toastId,
+                description: "Your vote has been counted."
+            });
             return transaction;
-        } catch(err) {
-            console.log("Error voting:", err);
-    }
+        } catch (err) {
+            if (err.code === "ACTION_REJECTED") {
+                toast.error("Transaction rejected");
+            } else {
+                toast.error("Vote failed", {
+                    description: err.reason || err.message
+                });
+            }
+            throw err;
+        }
     }; 
 
     const withdrawMilestone = async (campaignId, milestoneId) => {
         try {
             const contract = await getSignerContract();
+            const toastId = toast.loading("Processing withdrawal...", {
+                description: "Please confirm the transaction in MetaMask/Rabby."
+            });
             const transaction = await contract.withdrawMilestone(
                 campaignId,
                 milestoneId
             );
             await transaction.wait();
+            toast.success("Withdrawal successful!", {
+                id: toastId,
+                description: "Milestone funds have been sent to your wallet."
+            });
             return transaction
-        } catch(err) {
-            console.log("Error withdrawing:", err);
+        } catch (err) {
+            if (err.code === "ACTION_REJECTED") {
+                toast.error("Transaction rejected");
+            } else {
+                toast.error("Withdrawal failed", {
+                    description: err.reason || err.message
+                });
+            }
             throw err;
-    }
+        }
     }; 
 
     const requestRefund = async (campaignId) => {
         try {
             const contract = await getContract();
+            const toastId = toast.loading("Processing refund...", {
+                description: "Please confirm the transaction in MetaMask/Rabby."
+            });
             const transaction = await contract.requestRefund(campaignId);
             await transaction.wait();
+            toast.success("Refund successful!", {
+                id: toastId,
+                description: "Your contribution has been returned to your wallet."
+            });
             return transaction;
-        } catch(err) {
-            console.log("Error requesting refund:", err);
+        } catch (err) {
+            if (err.code === "ACTION_REJECTED") {
+                toast.error("Transaction rejected");
+            } else {
+                toast.error("Refund failed", {
+                    description: err.reason || err.message
+                });
+            }
             throw err;
-    }
+        }
     }; 
 
     // --- EXPOSE APP

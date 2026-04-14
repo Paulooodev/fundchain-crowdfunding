@@ -76,12 +76,12 @@ const CampaignDetailPage = () => {
 
     // ── Fetch ────
     const load = async () => {
-        if( id === undefined || id === null) return 
+        if(!id) return 
         try {
             setIsLoading(true);
             const numericId = Number(id);
-            console.log("Loading campaign id:", numericId);
-            const c = await getCampaignById(numericId);
+            console.log("Loading campaign id:", id);
+            const c = await getCampaignById(id);
             if (!c) {
                 setCampaign(null);
                 return;
@@ -96,7 +96,7 @@ const CampaignDetailPage = () => {
             while(true){
                 try {
                     console.log("Fetching milestone:", i);
-                    const m = await getMilestoneDetails(numericId, i);
+                    const m = await getMilestoneDetails(id, i);
                     console.log("Milestone result:", m);
                     if(!m) break;
                     mList.push({...m, index: i })
@@ -114,7 +114,10 @@ const CampaignDetailPage = () => {
             setIsLoading(false);
         }
     }
-     useEffect(() => { load(); }, [id]);
+     useEffect(() => {
+        if (!id) return;
+        load();
+    }, [id]);
 
 
     // ── Actions ────
@@ -347,7 +350,7 @@ const CampaignDetailPage = () => {
                                 <div className="flex gap-3">
                                     <div className="relative flex-1">
                                         <Icon 
-                                            icon="solar:dollar-minimalistic-bold"
+                                            icon="fa6-brands:ethereum" 
                                             className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" 
                                         />
                                         <input
@@ -359,10 +362,11 @@ const CampaignDetailPage = () => {
                                             onChange={e => { setDonateAmount(e.target.value); setDonateError(""); }}
                                             className="w-full rounded-lg border border-border bg-secondary text-foreground pl-10 pr-4 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                                         />
+                                    </div>
                                         <Button
                                             onClick={handleDonate}
                                             disabled={txLoading === "donate"}
-                                            className="gap-2 bg-gradient-to-br from-primary to-primary/90 shadow-lg shadow-primary/20 shrink-0"
+                                            className="gap-4 bg-gradient-to-br from-primary to-primary/90 shadow-lg shadow-primary/20 shrink-0"
                                         >
                                             {txLoading === "donate" ? (
                                                 <Icon icon="solar:refresh-bold" className="size-4 animate-spin" />
@@ -371,7 +375,6 @@ const CampaignDetailPage = () => {
                                             )}
                                             Donate
                                         </Button>
-                                    </div>
                                     {donateError && (
                                         <p className="text-xs text-destructive mt-2 flex items-center gap-1">
                                           <Icon icon="solar:danger-circle-bold" className="size-3" />

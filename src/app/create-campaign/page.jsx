@@ -292,8 +292,8 @@ const CreateCampaignPage = () => {
                                 <FormInput
                                     label="Campaign Deadline"
                                     icon="solar:calender-bold"
-                                    type="date"
-                                    min={new Date().toISOString().split("T")[0]}
+                                    type="datetime-local"
+                                    min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)} 
                                     value={form.deadline}
                                     onChange={e => updateForm("deadline", e.target.value)}
                                     error={errors.deadline}
@@ -367,7 +367,7 @@ const CreateCampaignPage = () => {
 
                                                 <FormInput
                                                     label="Amount (ETH)"
-                                                    icon="solar:dollar-minimalistic-bold"
+                                                    icon="fa6-brands:ethereum"
                                                     placeholder="e.g. 1.5"
                                                     type="number"
                                                     min="0"

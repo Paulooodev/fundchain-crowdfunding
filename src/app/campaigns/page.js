@@ -92,7 +92,7 @@ const CampaignCard = ({ campaign, index }) => {
                         </CardContent>
 
                        <CardFooter className="pt-0">
-                        <Link href={`/campaigns/${index}`} className="w-full">
+                        <Link href={`/campaigns/${campaign.id}`} className="w-full">
                             <Button className="w-full gap-2" variant="outline">
                                 <Icon icon="solar:eye-bold" className="size-4" />
                                 View Campaign
