@@ -107,7 +107,9 @@ export const CrowdFundingProvider = ({ children }) => {
     
     // ---- HELPER FUNCTIONS(provider for write functions)
     const getReadContract = () => {
-        const provider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
+        const provider = new ethers.providers.JsonRpcProvider(
+            process.env.NEXT_PUBLIC_RPC_URL
+        );
         return fetchContract(provider)
     }
     // ---- CAMPAIGN FUNCTIONS
@@ -116,10 +118,9 @@ export const CrowdFundingProvider = ({ children }) => {
         try {
           const contract = await getSignerContract();
           const toastId = toast.loading("Creating Campaign...", {
-            description: "Please confirm the transaction in MetaMask."
+            description: "Please confirm the transaction in MetaMask/Rabby."
           })
           const transaction = await contract.createCampaign(
-            currentAccount, // owner
             title,
             description,
             ethers.utils.parseEther(target.toString()), // convert ETH to wei
@@ -136,6 +137,9 @@ export const CrowdFundingProvider = ({ children }) => {
           })
           console.log("Campaign created successfully:", transaction.hash);
         } catch(err) {
+            console.log("FULL ERROR:", err);
+            console.log("Reason:", err.reason);
+            console.log("Error data:", err.error?.data?.message || err.data?.message);
             if(err.code === "ACTION_REJECTED") {
                 toast.error("Transaction rejected", {
                     description: "Transaction was cancelled."
@@ -341,6 +345,35 @@ export const CrowdFundingProvider = ({ children }) => {
         }
 
     }; 
+
+    const resubmitMilestoneProof = async (campaignId, milestoneId, ipfsHash) => {
+        try {
+            const contract = await getSignerContract();
+            const toastId = toast.loading("Resubmitting proof...", {
+                description: "Please confirm transaction in your wallet."
+            });
+            const transaction = await contract.resubmitMilestoneProof(
+                campaignId,
+                milestoneId,
+                ipfsHash
+            );
+            await transaction.wait();
+            toast.success("Prood resubmitted!", {
+                id: toastId,
+                description: "A fresh 7-day voting round is now open."
+            });
+            return transaction;
+        } catch(err){
+            if(err.code === "ACTION_REJECTED"){
+                toast.error("Transaction rejected");
+            } else {
+                toast.error("Resubmission failed", {
+                    description: err.reason || err.message
+                })
+            }
+            throw err;
+        }
+    }
     
     const voteOnMilestone = async (campaignId, milestoneId, support) => {
         try {
@@ -402,7 +435,7 @@ export const CrowdFundingProvider = ({ children }) => {
 
     const requestRefund = async (campaignId) => {
         try {
-            const contract = await getContract();
+            const contract = await getSignerContract();
             const toastId = toast.loading("Processing refund...", {
                 description: "Please confirm the transaction in MetaMask/Rabby."
             });
@@ -440,6 +473,7 @@ export const CrowdFundingProvider = ({ children }) => {
                 finalizeCampaign,
                 cancelCampaign,
                 submitMilestoneProof,
+                resubmitMilestoneProof,
                 voteOnMilestone,
                 withdrawMilestone,
                 requestRefund

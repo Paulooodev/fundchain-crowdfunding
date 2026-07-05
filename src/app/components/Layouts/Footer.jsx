@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { motion } from "framer-motion";
 import { Icon } from '@iconify/react';
 import { Button } from "@/components/ui/button"
+import Link from 'next/link';
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 
 
@@ -29,13 +30,18 @@ const Footer = () => {
               and security.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4">
+            <Link
+              href="/create-campaign"
+            >
               <Button
-                size='lg'
-                className="bg-gradient-to-br from-primary to-primary/90 shadow-lg shadow-primary/20"
-              >
-                <Icon icon="solar:rocket-bold" className="size-5" />
-                  Start Your Campaign
-              </Button>
+                  size='lg'
+                  className="bg-gradient-to-br from-primary to-primary/90 shadow-lg shadow-primary/20 cursor-pointer"
+                >
+                  <Icon icon="solar:rocket-bold" className="size-5" />
+                    Start Your Campaign
+                </Button>
+            </Link>
+              
             </div>
           </motion.div>
         </div>

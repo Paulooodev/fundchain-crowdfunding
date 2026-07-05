@@ -5,6 +5,7 @@ import { Icon } from '@iconify/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import TopDonors from '@/app/components/TopDonors';
 import { Card, CardContent } from '@/components/ui/card';
 import { CrowdFundingContext } from '../../../../Context/crowdfunding';
 import { useParams, useRouter } from 'next/navigation';
@@ -54,6 +55,7 @@ const CampaignDetailPage = () => {
         finalizeCampaign,
         cancelCampaign,
         submitMilestoneProof,
+        resubmitMilestoneProof,
         voteOnMilestone,
         withdrawMilestone,
         requestRefund,
@@ -62,6 +64,7 @@ const CampaignDetailPage = () => {
     const [campaign, setCampaign] = useState(null);
     const [milestones, setMilestones] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isResubmit, setIsResubmit] = useState(false);
     const [txLoading, setTxLoading] = useState("");
 
     // Donate
@@ -160,10 +163,15 @@ const CampaignDetailPage = () => {
         if(!ipfsHash.trim()) { setIpfsError("IPFS hash cannot be empty"); return; }
         try {
             setTxLoading("proof");
-            await submitMilestoneProof(id, proofTarget, ipfsHash.trim());
+            if(isResubmit) {
+                await resubmitMilestoneProof(id, proofTarget, ipfsHash.trim());
+            } else {
+                await submitMilestoneProof(id, proofTarget, ipfsHash.trim());
+            }
             setProofModal(false);
             setIpfsHash("");
             setProofTarget(null);
+            setIsResubmit(false);
             await load();
         } catch(e) { console.log(e); }
         finally { setTxLoading(""); }
@@ -550,6 +558,18 @@ const CampaignDetailPage = () => {
                                                     Submit Proof
                                                 </Button>
                                             )} 
+                                            {/* Owner: resubmit proof after failed vote */}
+                                            {isOwner && m.proofSubmitted && !m.approved && !m.paid && votingEnded && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => { setProofTarget(i); setProofModal(true); setIsResubmit(true); }}
+                                                    variant="outline"
+                                                    className="gap-2 border-chart-5/50 text-chart-5 hover:bg-chart-5/10"
+                                                >
+                                                    <Icon icon="solar:restart-bold" className="size-3.5" />
+                                                    Resubmit Proof
+                                                </Button>
+                                            )}
 
                                        {/* Donor: vote */}
                                             {!isOwner && votingOpen && !votingEnded && (
@@ -601,6 +621,16 @@ const CampaignDetailPage = () => {
                         </div>
                       )}
                 </motion.div>
+                {/* Top Donors */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.25 }}
+                className="mt-8"
+            >
+                <TopDonors campaignId={id} currentAccount={currentAccount} />
+            </motion.div>
+
             </div>
 
             {/* PROOF SUBMISSION MODAL */}

@@ -158,14 +158,26 @@ const CreateCampaignPage = () => {
         milestones.forEach((m, i) => {
              if (!m.description.trim()) 
                     newErrors[`milestone_${i}_description`] = "Description is required";
-             if (!m.amount.trim()) 
-                    newErrors[`milestone_${i}_amount`] = "Enter a valid amount";
+
+                // Hardened amount check — catches empty, non-numeric, zero, and negative
+                const amt = Number(m.amount);
+             if (!m.amount || m.amount.toString().trim() === "" || isNaN(amt) || amt <= 0) {
+                 newErrors[`milestone_${i}_amount`] = "Enter a valid amount";
+             }
              else {
-            totalMilestoneAmount += Number(m.amount);
+            totalMilestoneAmount += amt;
         }
     })
-    if(totalMilestoneAmount > Number(form.target)) {
-        newErrors.milestonesTotal = `Total milestone amounts (${totalMilestoneAmount} ETH) cannot be greater than campaign target (${form.target} ETH)`;
+
+    const target = Number(form.target)
+    // Round to avoid floating point issues like 0.1 + 0.2 = 0.30000000000004
+    const totalRounded = Math.round(totalMilestoneAmount * 1e8) / 1e8;
+    const targetRounded = Math.round(target * 1e8) / 1e8;
+
+    console.log("Milestone total:", totalRounded, "Target:", targetRounded);
+
+    if(totalRounded > targetRounded) {
+        newErrors.milestonesTotal = `Total milestone amounts (${totalRounded} ETH) cannot be greater than campaign target (${targetRounded} ETH)`;
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -271,7 +283,7 @@ const CreateCampaignPage = () => {
 
                                 <FormTextarea
                                     label="Description"
-                                    placeholder="Describe your project, what you are building, and why it matters, no be to collect money ooh"
+                                    placeholder="Describe your project, what you are building, and why it matters"
                                     value={form.description}
                                     onChange={e => updateForm("description", e.target.value)}
                                     error={errors.description}
@@ -339,14 +351,14 @@ const CreateCampaignPage = () => {
                                             >
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                                                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                                                             <span className="text-xs font-bold text-primary">
                                                                 {index + 1}
                                                             </span>
+                                                        </div>
                                                             <span className="text-sm font-medium text-foreground">
                                                                 Milestone {index + 1}
                                                             </span>
-                                                        </div>
                                                     </div>
                                                     {milestones.length > 1 && (
                                                         <button 

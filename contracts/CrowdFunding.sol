@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.18;
 
 contract CrowdFunding {
     // Milestone struct
@@ -20,6 +20,10 @@ contract CrowdFunding {
         // If donors vote against and the milestone fails, the owner can't simply resubmit
         // They will need to submit new proof and restart the window
         uint256 proofSubmittedAt;
+        // Tracks which voting round this milestone is on.
+        // Incremented each time the owner resubmits proof after a failed vote,
+        // which effectively resets everyone's hasVoted status for the new round.
+        uint256 votingRound;
     }
 
     enum CampaignStatus {
@@ -54,11 +58,17 @@ contract CrowdFunding {
     // Campaign ID -> User Address -> Has User Donated => Either true or false 
     mapping(uint256 => mapping(address => bool)) public isDonator;
 
-    // Campaign ID -> Milestone ID -> User Address -> Has Donor Voted => Either true or false
-    mapping(uint256 => mapping(uint256 => mapping(address => bool))) public hasVoted;
+    // hasVoted is now keyed by voting round as well, so a proof
+    // resubmission (which increments the round) automatically gives every
+    // donor a fresh vote without needing to iterate over the old mapping.
+    // Campaign ID -> Milestone ID -> Voting Round -> Voter -> Has voted
+    mapping(uint256 => mapping(uint256 => mapping(uint256 => mapping(address => bool)))) public hasVoted;
 
     // Voting window: 7 days after proof is submitted
-    uint256 public constant VOTING_WINDOW = 7 days;
+    uint256 public constant VOTING_WINDOW = 2 days;
+
+    // Sanity cap to keep createCampaign within block gas limits
+    uint256 public constant MAX_MILESTONES = 20;
 
     // --- events ---
     event CampaignCreated(
@@ -87,6 +97,13 @@ contract CrowdFunding {
         uint256 indexed campaignId,
         uint256 indexed milestoneId,
         string ipfsHash
+    );
+
+    event ProofResubmitted(
+        uint256 indexed campaignId,
+        uint256 indexed milestoneId,
+        string ipfsHash,
+        uint256 newVotingRound
     );
 
     event MilestoneVoted(
@@ -131,7 +148,6 @@ contract CrowdFunding {
 
     // Function to create a campaign
     function createCampaign(
-        address _owner, 
         string memory _title, 
         string memory _description, 
         uint256 _target, 
@@ -139,9 +155,6 @@ contract CrowdFunding {
         string[] memory _milestoneDescriptions,
         uint256[] memory _milestoneAmounts
         ) public returns (uint256) {
-        // Error might be here
-        // I will switch back to (campaign.deadline) in case i encouter any error
-        require(_owner != address(0), "Invalid owner");
         //  --- A deadline cannot be set in the past ---
         require(_deadline > block.timestamp, "The deadline must be a date in the future.");
         //  --- The target amount has to be greater than zero --- 
@@ -154,7 +167,10 @@ contract CrowdFunding {
         // uint256 campaignId = numberOfCampaigns;
         Campaign storage campaign = campaigns[numberOfCampaigns];
         // Write to Blockchain
-        campaign.owner = _owner;
+        // owner is now always msg.sender rather than an
+        // arbitrary parameter, preventing campaign creation on behalf of
+        // addresses the caller does not control.
+        campaign.owner = msg.sender;
         campaign.title = _title;
         campaign.description = _description;
         campaign.target = _target;
@@ -176,7 +192,8 @@ contract CrowdFunding {
                 paid: false,
                 votesFor: 0,
                 votesAgainst: 0,
-                proofSubmittedAt: 0
+                proofSubmittedAt: 0,
+                votingRound: 0
             }));
             totalMilestoneAmount += _milestoneAmounts[i];
         }
@@ -186,7 +203,7 @@ contract CrowdFunding {
         uint256 campaignId = numberOfCampaigns;
         numberOfCampaigns++;
 
-        emit CampaignCreated(campaignId, _owner, _target, _deadline);
+        emit CampaignCreated(campaignId, msg.sender, _target, _deadline);
         return campaignId;
     }
 
@@ -203,6 +220,12 @@ contract CrowdFunding {
         require(block.timestamp < campaign.deadline, "Campaign deadline has passed");
         require(campaign.status == CampaignStatus.Active, "Campaign is not active");
 
+        // The campaign owner can no longer donate to their own campaign.
+        // Without this check, an owner could donate enough to push the campaign
+        // past its target, then use that same contribution as voting weight to
+        // approve their own milestones - a governance capture attack that lets
+        // them drain genuine donors' funds with worthless proof.
+        require(msg.sender != campaign.owner, "Owner cannot donate to own campaign");
         // This checks if the user(msg.sender) is marked as a donor for this campaign(_campaignId) 
         if(!isDonator[_campaignId][msg.sender]) {
             isDonator[_campaignId][msg.sender] = true;
@@ -280,6 +303,59 @@ contract CrowdFunding {
         emit ProofSubmitted(_campaignId, _milestoneId, _ipfsHash);
     }
 
+    // Function to resubmit proof after a failed or expired vote.
+    // Before this function existed, a milestone whose vote failed (or whose
+    // voting window expired without reaching quorum) was permanently stuck:
+    // the owner could not resubmit, could not withdraw, and donors could not
+    // refund because the campaign status remained Successful. All escrowed
+    // funds for that campaign were locked in the contract forever.
+    //
+    // This function restores the path forward. The owner can submit fresh
+    // proof, which resets the vote tallies, increments the voting round
+    // (giving every donor a new vote), and restarts the 7-day window.
+
+    function resubmitMilestoneProof(
+        uint256 _campaignId,
+        uint256 _milestoneId,
+        string memory _ipfsHash
+    ) public {
+        require(_campaignId < numberOfCampaigns, "Campaign does not exist");
+        Campaign storage campaign = campaigns[_campaignId];
+        // Safety checks
+        require(msg.sender  == campaign.owner, "Only owner can resubmit proof");
+        require(_milestoneId < campaign.milestones.length, "Invalid milestone");
+
+        Milestone storage milestone = campaign.milestones[_milestoneId];
+        require(milestone.proofSubmitted, "No proof submitted yet");
+        require(!milestone.approved, "Milestone already approved");
+        require(!milestone.paid, "Milestone already paid");
+
+        // The previous voting window must have fully closed
+        require(
+            block.timestamp > milestone.proofSubmittedAt + VOTING_WINDOW,
+            "Previous voting window still open"
+        );
+         // Resubmission is only allowed when the previous vote did NOT pass:
+        // either rejections won/tied, or quorum was never reached.
+        uint256 totalVotes = milestone.votesFor + milestone.votesAgainst;
+        require(
+            milestone.votesAgainst >= milestone.votesFor
+            || totalVotes < (campaign.amountCollected / 2),
+            "Milestone vote already passed"
+        );
+
+        bytes memory hashBytes = bytes(_ipfsHash);
+        require(hashBytes.length > 0, "Proof hash cannot be empty");
+
+        // Reset the vote and restart the window under a new round number
+        milestone.proofHash = _ipfsHash;
+        milestone.proofSubmittedAt = block.timestamp;
+        milestone.votesFor = 0;
+        milestone.votesAgainst = 0;
+        milestone.votingRound += 1;
+
+        emit ProofResubmitted(_campaignId, _milestoneId, _ipfsHash, milestone.votingRound);
+    }
     // Function to vote on milestones
     function voteOnMilestone(
         uint256 _campaignId,
@@ -288,7 +364,6 @@ contract CrowdFunding {
     ) public {
         require(_campaignId < numberOfCampaigns, "Campaign does not exist");
         Campaign storage campaign = campaigns[_campaignId];
-
         //Ensure result is known before governance begins
         require(block.timestamp >= campaign.deadline, "Wait for deadline");
         if(campaign.status == CampaignStatus.Active){
@@ -303,6 +378,12 @@ contract CrowdFunding {
         // Safety Checks
         require(_milestoneId < campaign.milestones.length, "Invalid milestone");
         require(campaign.status == CampaignStatus.Successful, "Campaign not successful");
+
+        // The owner is barred from voting on their own milestones.
+        // Voting weight is proportional to contribution, so without this check
+        // an owner could vote their own (now blocked) contribution - this is
+        // defence in depth alongside the donation restriction above.
+        require(msg.sender != campaign.owner, "Owner cannot vote on own milestones");
 
         Milestone storage milestone = campaign.milestones[_milestoneId];
 
@@ -323,8 +404,9 @@ contract CrowdFunding {
         require(contribution > 0, "Must be a contributor to vote");
 
         // Double vote prevention
-        require(!hasVoted[_campaignId][_milestoneId][msg.sender], "Already voted");
-        hasVoted[_campaignId][_milestoneId][msg.sender] = true;
+        uint256 round = milestone.votingRound;
+        require(!hasVoted[_campaignId][_milestoneId][round][msg.sender], "Already voted");
+        hasVoted[_campaignId][_milestoneId][round][msg.sender] = true;
 
         // Weighted voting; Add the user donation amount to for/against
         if(_support) {

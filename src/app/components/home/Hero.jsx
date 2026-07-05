@@ -65,7 +65,7 @@ const Hero = () => {
                                 <Icon icon="solar:dollar-bold" className="size-10 text-primary" />
                             </div>
                             <div className="mb-2 text-4xl font-bold tracking-tight">
-                                $100M+
+                                $10M+
                             </div>
                             <div className="text-xl text-muted-foreground">
                                 Total Funds Raised
@@ -79,7 +79,7 @@ const Hero = () => {
                                 <Icon icon="solar:document-add-bold" className="size-10 text-accent" />
                             </div>
                             <div className="mb-2 text-4xl font-bold tracking-tight">
-                                8,450
+                                15
                             </div>
                             <div className="text-xl text-muted-foreground">
                                 Active Campaigns
