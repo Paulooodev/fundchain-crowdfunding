@@ -24,7 +24,7 @@ Built as a final-year Computer Science project at **McPherson University**.
 
 | Layer              | Technology                          |
 |--------------------|-------------------------------------|
-| Frontend           | Next.js, TypeScript, Tailwind CSS   |
+| Frontend           | Next.js, Tailwind CSS   |
 | Smart Contracts    | Solidity, Hardhat                   |
 | Blockchain         | Ethereum (Sepolia Testnet)          |
 | Backend / Database | Supabase                            |
@@ -39,7 +39,7 @@ Built as a final-year Computer Science project at **McPherson University**.
 ### Prerequisites
 
 - Node.js (v18 or higher)
-- MetaMask browser extension
+- Rabby browser extension
 - Sepolia testnet ETH (from a faucet)
 - Git
 
